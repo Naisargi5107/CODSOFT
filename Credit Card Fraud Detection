@@ -1,0 +1,76 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+# Load dataset
+df = pd.read_csv('creditcard.csv')
+
+# Features & Target
+X = df.drop('Class', axis=1)
+y = df['Class']
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Scaling
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Function for evaluation
+def evaluate_model(model, X_test, y_test, name):
+    y_pred = model.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+
+    probs = model.predict_proba(X_test)[:,1]
+    auc = roc_auc_score(y_test, probs)
+
+    print(f"\n{name}")
+    print("Confusion Matrix:")
+    print(cm)
+    print(f"AUC: {auc:.3f}")
+
+    fpr, tpr, _ = roc_curve(y_test, probs)
+    plt.plot(fpr, tpr, label=name)
+
+# Models
+models = {
+    "Logistic Regression": LogisticRegression(class_weight='balanced', max_iter=1000),
+    "Decision Tree": DecisionTreeClassifier(max_depth=5, class_weight='balanced'),
+    "Random Forest": RandomForestClassifier(n_estimators=100, class_weight='balanced')
+}
+
+# Train & Evaluate
+plt.figure(figsize=(8,6))
+plt.plot([0,1],[0,1],'--')
+
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    evaluate_model(model, X_test, y_test, name)
+
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.show()
+
+# Correlation heatmap
+plt.figure(figsize=(12,10))
+sns.heatmap(df.corr(), cmap='coolwarm', vmax=0.8)
+plt.title("Correlation Matrix")
+plt.show()
+
+# Class distribution
+sns.countplot(x='Class', data=df)
+plt.title("Fraud vs Legit Transactions")
+plt.show()
