@@ -1,0 +1,86 @@
+import pandas as pd
+import re
+import nltk
+from nltk.corpus import stopwords
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import Pipeline
+
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import LabelEncoder
+
+# Download stopwords
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+# LOAD DATA
+data = pd.read_csv("spam.csv", encoding='latin-1')
+data = data[['v1', 'v2']]
+data.columns = ['label', 'message']
+
+# CHECK DATA BALANCE
+print("\nClass Distribution:\n", data['label'].value_counts())
+
+# PREPROCESS FUNCTION
+def preprocess(text):
+    text = text.lower()
+    text = re.sub(r'[^a-z\s]', '', text)
+    words = text.split()
+    words = [w for w in words if w not in stop_words]
+    return " ".join(words)
+
+data['message'] = data['message'].apply(preprocess)
+
+# ENCODE LABELS
+encoder = LabelEncoder()
+data['label'] = encoder.fit_transform(data['label'])
+
+# TRAIN-TEST SPLIT
+X_train, X_test, y_train, y_test = train_test_split(
+    data['message'],
+    data['label'],
+    test_size=0.2,
+    random_state=42,
+    stratify=data['label']
+)
+
+# PIPELINE (TF-IDF + MODEL)
+model = Pipeline([
+    ('tfidf', TfidfVectorizer(max_features=5000, ngram_range=(1, 2))),
+    ('clf', MultinomialNB())
+])
+
+# TRAIN
+model.fit(X_train, y_train)
+
+# EVALUATE
+y_pred = model.predict(X_test)
+
+print("\nModel Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# PREDICTION FUNCTION
+def predict_sms(text, threshold=0.5):
+    clean_text = preprocess(text)
+    prob = model.predict_proba([clean_text])[0]
+
+    print(f"Spam Probability: {prob[1]:.2f}")
+
+    return "SPAM" if prob[1] > threshold else "HAM"
+
+# USER LOOP
+print("\nSpam SMS Detector")
+print("Type 'exit' to stop.\n")
+
+while True:
+    user_input = input("Enter a message: ")
+
+    if user_input.lower() == "exit":
+        print("Exiting..")
+        break
+
+    result = predict_sms(user_input)
+    print("Result:", result, "\n")
